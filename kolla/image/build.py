@@ -128,6 +128,7 @@ SKIPPED_IMAGES = {
         "ec2-api",
         "freezer-base",
         "heat-all",
+        "hostbill",
         "karbor-base",
         "kuryr-base",
         "mistral-event-engine",
@@ -146,6 +147,7 @@ SKIPPED_IMAGES = {
         "zun-base",
     ],
     'ubuntu+source': [
+        "hostbill",
         "tripleo-ui"
     ],
     'debian+binary': [
@@ -158,6 +160,7 @@ SKIPPED_IMAGES = {
         "ec2-api",
         "freezer-base",
         "heat-all",
+        "hostbill",
         "karbor-base",
         "kuryr-base",
         "mistral-event-engine",
@@ -177,6 +180,7 @@ SKIPPED_IMAGES = {
         "zun-base"
     ],
     'debian+source': [
+        "hostbill",
         "sensu-base",
         "tripleo-ui"
     ],
