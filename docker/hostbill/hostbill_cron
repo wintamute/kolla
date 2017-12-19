@@ -1,0 +1,2 @@
+*/5 * * * * /usr/bin/php -q /home/hostbill/public_html/admin/cron.php
+* * * * * /usr/bin/php -q /home/hostbill/public_html/queue.php

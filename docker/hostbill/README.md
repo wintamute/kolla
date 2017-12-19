@@ -1,12 +1,15 @@
 Hostbill Dockerfile
 ===================
 
-Currently the image for Hostbill is built externally, for it to be included
-in the Kolla build it needs to be tested with the base image first and some
-external dependencies need to be hosted somewhere so they can be downloaded
-during the image build process: hostbill_installer archive and db dump.
+Currently the image for Hostbill is not based on the generic base images like
+the other services but uses a debian image due to dependencies of hostbill.
+Not all needed packages are available in the Ubuntu package repository.
 
-Those files are too big to be included in the repository.
+The hostbill files (installer and db dump) should be downloadable from
+http://downloads.tw.intern/ as
+http://downloads.tw.intern/dump_hostbill_latest.sql and
+http://downloads.tw.intern/hostbill_install_latest.tar.gz
 
-Also the bootstrapping script should be embedded directly in the image and
-parse the generated config file to gather the values for connecting to the db.
+Those links should always point to the most recent versions of hostbill.
+The installer is not the installer package provided by Hostbill but an archive
+of a freshly installed Hostbill version with license included.

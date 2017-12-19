@@ -1,30 +1,108 @@
-FROM {{ namespace }}/{{ image_prefix }}glance-base:{{ tag }}
+FROM debian:jessie
 LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build_date }}"
 
-{% block hostbill_header %}{% endblock %}
+ENV DEBIAN_FRONTEND=noninteractive
 
-{% import "macros.j2" as macros with context %}
+RUN apt-get update && apt-get install -y \
+	wget \
+	lsb-release \
+	curl \
+	apt-utils \
+	sudo
 
-{% if base_distro not in ['debian', 'ubuntu'] %}
+RUN echo 'deb http://packages.dotdeb.org jessie all' >> /etc/apt/sources.list \
+        && echo 'deb-src http://packages.dotdeb.org jessie all' >> /etc/apt/sources.list \
+        && wget https://www.dotdeb.org/dotdeb.gpg -O  /tmp/dotdeb.gpg  \
+        && apt-key add /tmp/dotdeb.gpg
 
-RUN echo '{{ install_type }} not yet available for {{ base_distro }}' \
-&& /bin/false
+RUN apt-get update && apt-get install -y \
+        unzip \
+        cron \
+        snmp \
+        mariadb-client \
+        python
 
-{% endif %}
+ENV KOLLA_USER kolla
+ENV KOLLA_UID 4200
+RUN useradd -m hostbill \
+    && mkdir -p /home/hostbill/public_html \
+    && mkdir -p /home/hostbill/var/log \
+    && mkdir -p /home/hostbill/var/run \
+    && chmod o+x /home/hostbill/ \
+    && chown -R hostbill:hostbill /home/hostbill/ \
+    && chmod -R 0777 /home/hostbill/var \
+    && groupadd --force --gid "$KOLLA_UID" "$KOLLA_USER" \
+    && useradd -M --shell /usr/sbin/nologin --uid "$KOLLA_UID" --gid "$KOLLA_UID" "$KOLLA_USER"
 
-{% if install_type == 'binary' %}
+RUN apt-get install nginx -y \
+        && rm -rf /etc/nginx/conf.d/* \
+        && rm -rf /etc/nginx/default.d/* \
+        && mkdir -p /etc/nginx/upstreams \
+        && mkdir -p /etc/nginx/locations
 
-RUN echo '{{ install_type }} not yet available for {{ base_distro }}' \
-    && /bin/false
+RUN apt-get install -y \
+        php7.0 \
+        php7.0-fpm \
+        php7.0-cli \
+        php7.0-mcrypt \
+        php7.0-gd  \
+        php7.0-snmp \
+        php7.0-json \
+        php7.0-imap \
+        php7.0-memcached \
+        php7.0-soap \
+        php7.0-xml \
+        php7.0-xmlrpc \
+        php7.0-mbstring \
+        php7.0-mysqlnd \
+        php7.0-curl
 
-{% endif %}
+RUN rm -rf /etc/php/7.0/fpm/pool.d/*
 
-{{ macros.install_packages(hostbill_packages | customizable("packages")) }}
+# installing ioncube loader
+RUN cd /root \
+        && wget http://downloads3.ioncube.com/loader_downloads/ioncube_loaders_lin_x86-64.zip -O /root/ioncube.zip \
+        && unzip -o ioncube.zip \
+        && cp /root/ioncube/ioncube_loader_lin_7.0.so /usr/lib/php/ \
+        && chmod +x /usr/lib/php/ioncube_loader_lin_7.0.so \
+        && echo "zend_extension=/usr/lib/php/ioncube_loader_lin_7.0.so" > /etc/php/7.0/mods-available/ioncube.ini \
+        && cd /etc/php/7.0/cli/conf.d/ \
+        && ln -s /etc/php/7.0/mods-available/ioncube.ini 10-ioncube.ini \
+        && cd /etc/php/7.0/fpm/conf.d/ \
+        && ln -s /etc/php/7.0/mods-available/ioncube.ini 10-ioncube.ini \
+        && /bin/rm -rf /root/ioncube*
 
-COPY extend_start.sh /usr/local/bin/kolla_hostbill_extend_start
-RUN chmod 755 /usr/local/bin/kolla_hostbill_extend_start
+RUN apt-get install -y \
+        memcached \
+        vim
 
-{% block hostbill_footer %}{% endblock %}
-{% block footer %}{% endblock %}
+COPY set_configs.py /usr/local/bin/kolla_set_configs
+COPY start.sh /usr/local/bin/kolla_start
+COPY sudoers /etc/sudoers
+COPY curlrc /root/.curlrc
 
-USER hostbill
+RUN curl -sSL https://github.com/Yelp/dumb-init/releases/download/v1.1.3/dumb-init_1.1.3_amd64 -o /usr/local/bin/dumb-init \
+    && chmod +x /usr/local/bin/dumb-init \
+    && sed -i 's|#!|#!/usr/local/bin/dumb-init |' /usr/local/bin/kolla_start
+
+RUN touch /usr/local/bin/kolla_extend_start \
+    && chmod 755 /usr/local/bin/kolla_start /usr/local/bin/kolla_extend_start /usr/local/bin/kolla_set_configs \
+    && chmod 440 /etc/sudoers \
+    && mkdir -p /var/log/kolla \
+    && chown :kolla /var/log/kolla \
+    && chmod 2775 /var/log/kolla \
+    && rm -f /tmp/kolla_bashrc
+
+# Add hostbill installer and db dump files
+RUN mkdir -p /opt/hostbill \
+    && curl -sSL http://downloads.tw.intern/dump_hostbill_latest.sql -o /opt/hostbill/db_dump.sql \
+    && curl -sSl http://downloads.tw.intern/hostbill_install_latest.tar.gz -o /opt/hostbill/hostbill_installer.tar.gz
+
+# Add hostbill scripts
+COPY hostbill_cron /hostbill_cron
+COPY start_hostbill.sh /start_hostbill.sh
+
+COPY extend_start.sh /usr/local/bin/kolla_extend_start
+RUN chmod 755 /usr/local/bin/kolla_extend_start
+
+CMD ["kolla_start"]
